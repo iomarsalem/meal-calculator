@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>حاسبة الوجبة الذكية</title>
+<style>
+*{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#fbf8f0;--fg:#2b2f22;--card:#ffffff;--border:#e6e0cd;--accent:#4f7942;--accent-light:#e7f0e2;--muted:#7c8271;--bad:#c1462e;--bad-light:#f9e3de;--good:#3f7d3f;--good-light:#e2f0df}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:Tahoma,'Segoe UI',Arial,sans-serif;line-height:1.6;padding:20px 16px 40px}
+.wrap{max-width:640px;margin:0 auto}
+h1{font-size:1.45rem;margin:4px 0 2px}
+p.sub{color:var(--muted);margin:0 0 16px;font-size:.92rem}
+.search-wrap{position:relative}
+#search{width:100%;padding:13px 14px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);color:var(--fg);font-size:1rem;font-family:inherit;transition:border-color .15s}
+#search:focus{outline:none;border-color:var(--accent)}
+.results{margin-top:6px;border-radius:12px;overflow:hidden;border:1px solid var(--border);display:none;box-shadow:0 4px 14px rgba(0,0,0,.06)}
+.results.show{display:block}
+.result-row{display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--card);cursor:pointer;border-bottom:1px solid var(--border);font-size:.95rem;transition:background .12s}
+.result-row:last-child{border-bottom:none}
+.result-row:active,.result-row:hover{background:var(--accent-light)}
+.empty{color:var(--muted);font-size:.88rem;margin:14px 2px}
+.itemsList:not(:empty){border:1px solid var(--border);border-radius:14px;padding:2px 14px;background:var(--card);margin-top:14px}
+.sel-item{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)}
+.sel-item:last-child{border-bottom:none}
+.sel-item .name{flex:1;font-size:.92rem}
+.sel-item input[type=number]{width:58px;padding:6px;border-radius:8px;border:1px solid var(--border);text-align:center;font-size:.9rem;background:var(--bg);color:var(--fg)}
+.sel-item .g{font-size:.75rem;color:var(--muted)}
+.sel-item .rm{background:none;border:none;color:var(--bad);font-size:1.15rem;cursor:pointer;padding:2px 4px;line-height:1}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-top:16px;box-shadow:0 4px 14px rgba(0,0,0,.05)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
+.grid div b{display:block;font-size:1.25rem;color:var(--accent)}
+.grid div span{color:var(--muted);font-size:.75rem}
+.verdict{font-weight:bold;padding:11px 14px;border-radius:10px;margin-top:16px;display:none}
+.ok{background:var(--good-light);color:var(--good);display:block}
+.no{background:var(--bad-light);color:var(--bad);display:block}
+ul.sugg{margin:10px 0 0;padding-inline-start:20px;font-size:.88rem}
+.note{color:var(--muted);font-size:.76rem;margin-top:18px}
+#out{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>🥗 حاسبة الوجبة الذكية</h1>
+<p class="sub">دوّر على كل صنف تبيه وأضفه من القائمة، وعدّل الكمية بالجرام لو تبي دقة أكثر.</p>
+
+<div class="search-wrap">
+<input type="text" id="search" placeholder="🔍 دور على صنف... مثل: تفاح، جبنة، عصير" autocomplete="off" oninput="onSearch()">
+<div id="results" class="results"></div>
+</div>
+<p id="empty" class="empty">ابحث عن أول صنف وأضفه من القائمة اللي تطلع تحت البحث.</p>
+<div id="itemsList" class="itemsList"></div>
+
+<div class="card" id="out">
+<div class="grid">
+<div><b id="cCal">0</b><span>سعرة</span></div>
+<div><b id="cPro">0</b><span>بروتين g</span></div>
+<div><b id="cCar">0</b><span>كارب g</span></div>
+<div><b id="cFat">0</b><span>دهون g</span></div>
+</div>
+<div class="verdict" id="verdict"></div>
+<ul class="sugg" id="sugg"></ul>
+</div>
+<p class="note">التقديرات تقريبية وتعتمد على قاعدة بيانات محدودة لأشهر الأطعمة عند الطلاب، وما تغني عن استشارة أخصائي تغذية.</p>
+</div>
+<script>
+const DB=[
+["تفاح","تفاح,تفاحة,تفاحتين,تفاحات",52,.3,14,.2,150,"fruit"],
+["موز","موز,موزة,موزتين,موزات",89,1.1,23,.3,120,"fruit"],
+["برتقال","برتقال,برتقالة,برتقالتين",47,.9,12,.1,150,"fruit"],
+["تمر","تمر,تمرات",277,1.8,75,.2,40,"fruit"],
+["عنب","عنب",69,.7,18,.2,80,"fruit"],
+["خبز أبيض","خبز أبيض,خبزة بيضاء,توست,صامولي",265,9,49,3.2,30,"grain"],
+["خبز أسمر","خبز أسمر,خبزة أسمر",247,13,41,3.4,30,"grain"],
+["تميس","تميس",280,8,50,5,90,"grain"],
+["أرز","أرز,رز",130,2.7,28,.3,150,"grain"],
+["معكرونة","معكرونة,مكرونة,باستا",131,5,25,1.1,150,"grain"],
+["بيضة","بيضة,بيض,بيضتين",155,13,1.1,11,50,"protein"],
+["جبنة كيري","كيري,جبن كيري,جبنة كيري",280,9,4,25,17.5,"protein"],
+["جبنة شيدر","شيدر,جبن شيدر,جبنة شيدر",403,25,1.3,33,20,"protein"],
+["لبنة","لبنة",290,8,6,27,30,"protein"],
+["تونة","تونة",116,26,0,1,80,"protein"],
+["دجاج","دجاج,صدر دجاج",165,31,0,3.6,100,"protein"],
+["فول","فول",110,7.6,18,.6,150,"protein"],
+["حمص","حمص",164,8.9,27,2.6,150,"protein"],
+["حليب","حليب,لبن",42,3.4,5,1,200,"dairy"],
+["زبادي","زبادي",59,3.5,4.7,3.3,170,"dairy"],
+["عصير برتقال","عصير برتقال",45,.7,10.4,.2,200,"drink"],
+["عصير تفاح","عصير تفاح",46,.1,11.3,.1,200,"drink"],
+["عصير مانجو","عصير مانجو",60,.4,15,.2,200,"drink"],
+["شوكولاتة","شوكولاتة",530,7.6,59,30,20,"sweet"],
+["بسكويت","بسكويت",480,6,65,22,25,"sweet"],
+["شيبس","شيبس",536,7,53,34,30,"sweet"],
+["خيار","خيار",15,.7,3.6,.1,100,"veg"],
+["جزر","جزر",41,.9,10,.2,60,"veg"]
+];
+const GI={fruit:'🍎',grain:'🍞',protein:'🍗',dairy:'🥛',drink:'🧃',sweet:'🍬',veg:'🥕'};
+function norm(t){return t.replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[ًٌٍَُِّْـ]/g,'');}
+let selected=[];
+function onSearch(){
+let q=norm(document.getElementById('search').value.trim());
+let box=document.getElementById('results');
+if(!q){box.className='results';box.innerHTML='';return;}
+let hits=DB.filter(f=>f[1].split(',').some(a=>norm(a).includes(q))).slice(0,8);
+box.innerHTML=hits.map(f=>`<div class="result-row" onclick="addItem(${DB.indexOf(f)})"><span>${GI[f[7]]}</span><span>${f[0]}</span></div>`).join('')||'<div class="result-row" style="cursor:default">ما فيه نتائج مطابقة</div>';
+box.className='results show';
+}
+function addItem(i){
+let f=DB[i];
+let ex=selected.find(s=>s.food===f);
+if(ex){ex.grams+=f[6];}else{selected.push({food:f,grams:f[6]});}
+document.getElementById('search').value='';
+document.getElementById('results').className='results';
+document.getElementById('results').innerHTML='';
+document.getElementById('search').focus();
+renderItems();
+}
+function removeItem(i){selected.splice(i,1);renderItems();}
+function renderItems(){
+let el=document.getElementById('itemsList');
+el.innerHTML=selected.map((s,i)=>`<div class="sel-item"><span>${GI[s.food[7]]}</span><span class="name">${s.food[0]}</span><input type="number" min="0" inputmode="numeric" value="${s.grams}" oninput="selected[${i}].grams=+this.value||0;renderTotals()"><span class="g">غم</span><button class="rm" onclick="removeItem(${i})">✕</button></div>`).join('');
+document.getElementById('empty').style.display=selected.length?'none':'block';
+renderTotals();
+}
+function renderTotals(){
+let tot={cal:0,pro:0,car:0,fat:0};
+let groups=new Set();
+selected.forEach(s=>{let f=s.food,r=s.grams/100;tot.cal+=f[2]*r;tot.pro+=f[3]*r;tot.car+=f[4]*r;tot.fat+=f[5]*r;groups.add(f[7]);});
+document.getElementById('out').style.display=selected.length?'block':'none';
+document.getElementById('cCal').textContent=Math.round(tot.cal);
+document.getElementById('cPro').textContent=Math.round(tot.pro);
+document.getElementById('cCar').textContent=Math.round(tot.car);
+document.getElementById('cFat').textContent=Math.round(tot.fat);
+let hasGrain=groups.has('grain'),hasPro=groups.has('protein')||groups.has('dairy'),hasFruit=groups.has('fruit')||groups.has('veg');
+let ok=hasGrain&&hasPro&&hasFruit;
+let v=document.getElementById('verdict');
+if(!selected.length){v.className='verdict';v.textContent='';}
+else if(ok){v.className='verdict ok';v.textContent='✅ وجبة متكاملة تقريبًا: فيها نشويات وبروتين وفاكهة/خضار';}
+else{v.className='verdict no';v.textContent='⚠️ الوجبة ناقصة بعض العناصر';}
+let sugg=[];
+if(selected.length){
+if(!hasGrain)sugg.push('أضف مصدر نشويات مثل خبز أو أرز أو تميس');
+if(!hasPro)sugg.push('أضف مصدر بروتين مثل بيضة أو جبنة أو دجاج أو زبادي');
+if(!hasFruit)sugg.push('أضف فاكهة أو خضار لزيادة الفيتامينات والألياف');
+if(tot.cal<200)sugg.push('السعرات قليلة نسبيًا لوجبة، فكر تضيف عنصر ثاني');
+if(tot.cal>700)sugg.push('السعرات مرتفعة نسبيًا لوجبة خفيفة، حاول تقلل الكمية');
+}
+document.getElementById('sugg').innerHTML=sugg.map(s=>`<li>${s}</li>`).join('');
+}
+</script>
+</body>
+</html>
